@@ -1,0 +1,248 @@
+---
+title: "SDS/CSC 293 Mini-Project 2: Multiple Regression"
+author: "Group 4: Irene Ryan and Starry Zhou"
+date: "Wednesday, March 6^th^, 2019"
+output:
+  html_document:
+    highlight: tango
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      collapsed: true
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+# Load all your packages here:
+library(tidyverse)
+library(scales)
+library(Metrics)
+library(dplyr)
+library(stats)
+
+# Set default behavior for all code chunks here:
+knitr::opts_chunk$set(
+  echo = TRUE, warning = FALSE, message = FALSE,
+  fig.width = 16/2, fig.height = 9/2
+)
+
+# Set seed value of random number generator here. This is in order to get
+# "replicable" randomness, so that any results based on random sampling or
+# resampling are replicable everytime you knit this file. Why use a seed value
+# of 76? For no other reason than 76 is one of my favorite numbers:
+# https://www.youtube.com/watch?v=xjJ7FheCkCU
+set.seed(76)
+```
+
+You will be submiting an entry to Kaggle's [House Prices: Advanced Regression Techniques](https://www.kaggle.com/c/house-prices-advanced-regression-techniques/){target="_blank"} by fitting a **multiple regression** model $\hat{f}(x)$.
+
+***
+
+# EDA
+
+Read in data provided by Kaggle for this competition. They are organized in the `data/` folder of this RStudio project:
+
+```{r}
+training <- read_csv("data/train.csv")
+test <- read_csv("data/test.csv")
+sample_submission <- read_csv("data/sample_submission.csv")
+```
+
+Before performing any model fitting, you should always conduct an exploratory data analysis. This will help guide and inform your model fitting. 
+
+## Look at your data!
+
+Always, ALWAYS, **ALWAYS** start by looking at your raw data. This gives you visual sense of what information you have to help build your predictive models. To get a full description of each variable, read the data dictionary in the `data_description.txt` file in the `data/` folder.
+
+Note that the following code chunk has `eval = FALSE` meaning "don't evaluate this chunk with knitting" because `.Rmd` files won't knit if they include a `View()`:
+
+```{r, eval = FALSE}
+View(training)
+glimpse(training)
+
+View(test)
+glimpse(test)
+```
+
+In particular, pay close attention to the variables and variable types in the
+`sample_submission.csv`. Your submission must match this exactly.
+
+```{r}
+glimpse(sample_submission)
+```
+
+## Data wrangling
+
+As much as possible, try to do all your data wrangling here:
+
+```{r}
+training_cv <- training %>%
+  sample_frac(1) %>%
+  mutate(fold = rep(1:5, length = n())) %>%
+  arrange(fold)
+```
+
+
+***
+# MVP/Due Diligence
+
+##Visualizing Predictors
+```{r}
+ggplot(training, aes(x=GrLivArea))+
+  geom_histogram()
+
+ggplot(training, aes(x=HouseStyle))+
+  geom_bar()
+```
+
+## Model fitting
+
+```{r}
+#first model: 1 numeric, 1 categorical
+#Fit model to training
+m1_formula <- as.formula("SalePrice~GrLivArea+HouseStyle")
+m1 <- lm(m1_formula, data = training)
+
+# make predictions on pretend test
+fitted_points_m1 <- m1 %>%
+  broom::augment()
+head(fitted_points_m1)
+
+# make predictions on test set 
+predicted_points_m1 <- m1 %>%  
+  broom::augment(newdata = test)
+head(predicted_points_m1)
+```
+
+## Estimate of your Kaggle score
+
+```{r}
+rmsle1<- rmsle(fitted_points_m1$SalePrice, fitted_points_m1$.fitted)
+rmsle1
+```
+
+## Create your submission CSV
+
+```{r}
+submission1 <- predicted_points_m1 %>% 
+  dplyr::select(Id, .fitted)
+names(submission1)[2] <- "SalePrice"
+write_csv(submission1, path = "data/submission_mvp.csv")
+```
+
+## Screenshot of your Kaggle score
+
+![](submission_mvp.png){ width=100% }
+
+***
+
+# Reaching for the stars
+
+
+## Model fitting
+
+```{r}
+#second model: 3 numeric, 3 categorical
+
+m2_formula <- as.formula("SalePrice~GrLivArea+ HouseStyle+ YrSold+ OverallCond+ LotConfig+ CentralAir")
+m2 <- lm(m2_formula, data = training)
+
+fitted_points_m2 <- m2 %>%
+  broom::augment()
+head(fitted_points_m2)
+
+predicted_points_m2 <- m2 %>%  
+  broom::augment(newdata = test)
+head(predicted_points_m2)
+```
+
+## Estimate of your Kaggle score
+
+```{r}
+rmsle2 <- rmsle(fitted_points_m2$SalePrice, fitted_points_m2$.fitted)
+rmsle2
+```
+
+## Create your submission CSV
+
+```{r}
+submission2 <- predicted_points_m2 %>% 
+  dplyr::select(Id, .fitted) 
+names(submission2)[2] <- "SalePrice"
+write_csv(submission2, path = "data/submission_reach_for_stars.csv")
+```
+
+## Screenshot of your Kaggle score
+
+![](star.png){ width=100% }
+
+***
+
+# Point of diminishing returns
+
+## Model fitting
+
+```{r}
+#stepwise regression model: backwards selection on second model
+m3 <- step(m2, direction = "backward")
+
+#view regression information
+summary(m3)
+
+# extract prediction
+fitted_points_m3 <- m3 %>%
+  broom::augment()
+head(fitted_points_m3)
+
+# make predictions on test set 
+predicted_points_m3 <- m3 %>%  
+  broom::augment(newdata = test)
+head(predicted_points_m3)
+```
+
+
+## Estimate of your Kaggle score
+
+```{r}
+rmsle3 <- rmsle(fitted_points_m3$SalePrice, fitted_points_m3$.fitted)
+rmsle3
+```
+
+
+## Create your submission CSV
+
+```{r}
+submission3 <- predicted_points_m3 %>% 
+  dplyr::select(Id, .fitted) 
+names(submission3)[2] <- "SalePrice"
+write_csv(submission3, path = "data/submission_diminishing_returns.csv")
+```
+
+
+## Screenshot of your Kaggle score
+
+Our score based on our submission's "Root Mean Squared Logarithmic Error" was 0.42918.
+
+![](pdr.png){ width=100% }
+
+
+# Comparisons of estimated scores and Kaggle scores
+
+Model 1: Our score based on our submission's "Root Mean Squared Logarithmic Error" was .26. Our estimated RMSLE is $.25$.
+
+$RMSLE_1 = .26$
+
+$\widehat{RMSLE_1} = .25$
+
+Model 2: Our score based on our submission's "Root Mean Squared Logarithmic Error" was $.264$. The estimated RMSLE is $.266$.
+
+$RMSLE_2 = .264$
+
+$\widehat{RMSLE_2} = .266$
+
+Model 3: Our score based on our submission's "Root Mean Squared Logarithmic Error" was $.267$. The estimated RMSLE is $.279$.
+
+$RMSLE_3 = .267$
+$\widehat{RMSLE_3} = .279$
+
